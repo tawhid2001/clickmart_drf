@@ -22,4 +22,10 @@ urlpatterns = [
     
     # Cart API endpoints
     path('cart/', CartViews.CartView.as_view()),
+    
+    # Add to Cart
+    path('cart/add/', CartViews.AddtoCartView.as_view()),
+    
+    # Manage Cart
+    path('cart/items/<int:item_id>/', CartViews.ManageCartItemView.as_view()),
 ]
