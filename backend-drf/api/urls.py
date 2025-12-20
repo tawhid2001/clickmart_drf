@@ -2,6 +2,7 @@ from django.urls import path
 from users import views as UserViews
 from products import views as ProductViews
 from carts import views as CartViews
+from orders import views as OrderViews
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 urlpatterns = [
@@ -28,4 +29,10 @@ urlpatterns = [
     
     # Manage Cart
     path('cart/items/<int:item_id>/', CartViews.ManageCartItemView.as_view()),
+        
+    # Orders
+    path('orders/place/', OrderViews.PlaceOrderView.as_view()),
+    
+    path('orders/', OrderViews.MyOrdersView.as_view()),
+    path('orders/<int:pk>/', OrderViews.MyOrderDetailView.as_view()),
 ]
