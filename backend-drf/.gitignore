@@ -175,3 +175,7 @@ cython_debug/
 
 backend-drf/.env.docker
 backend-drf/.env.production
+
+# Ignore environment variable files
+.env.docker
+.env.production
