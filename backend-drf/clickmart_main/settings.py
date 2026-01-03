@@ -177,6 +177,8 @@ CORS_ALLOWED_ORIGINS = [
     "http://45.79.212.19:8000",
     "http://45.79.212.19:5173",
     "http://45.79.212.19",
+    "http://click-mart.website",
+    "https://click-mart.website",
 ]
 
 CSRF_TRUSTED_ORIGINS = os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",")
