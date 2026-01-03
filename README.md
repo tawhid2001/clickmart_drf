@@ -41,8 +41,8 @@ Install these locally:
 ## 1. Clone and reinitialize
 Clone the project:
 ```bash
-git clone https://github.com/dev-rathankumar/django_clickmart_
-cd django_clickmart_
+git clone https://github.com/dev-rathankumar/clickmart_drf
+cd clickmart_drf
 ```
 
 Optional: remove existing git history and push to your own repo:
