@@ -1,97 +1,123 @@
-🚀 Django Production Deployment (Step-by-Step)
-Docker + PostgreSQL + GitHub Actions (CI/CD) + Linode + Nginx + Gunicorn + Custom Domain + SSL
-This repository demonstrates how to deploy a Django application from local development to production using:
+# Django Production Deployment (ClickMart)
 
-Django
-Docker & Docker Compose
-PostgreSQL
-GitHub Actions (CI/CD)
-Linode VPS
-Nginx
-Gunicorn
-Custom Domain
-SSL (Let’s Encrypt)
-You will go step-by-step from:
+This repository documents a full path from local development to production for a Django + React app using Docker, PostgreSQL, GitHub Actions, Linode, Nginx, Gunicorn, a custom domain, and SSL.
 
-Local → Docker → GitHub → Linode → Domain → HTTPS
+## Contents
+- Overview
+- Tech stack
+- Prerequisites
+- 1. Clone and reinitialize
+- 2. Run locally (no Docker)
+- 3. Run with Docker (local)
+- 4. Deploy to Linode
+- 5. CI/CD (GitHub Actions)
+- 6. Nginx reverse proxy
+- 7. Gunicorn (production WSGI)
+- 8. Custom domain + SSL
+- 9. Serve media files
 
-🧰 Prerequisites
-Install the following on your system:
+## Overview
+Flow:
+Local -> Docker -> GitHub -> Linode -> Domain -> HTTPS
 
-Git
-Python 3.10+
-pip
-Docker Desktop
-VS Code (recommended)
-📦 Step 1 — Clone the Project
+## Tech stack
+- Django
+- Docker + Docker Compose
+- PostgreSQL
+- GitHub Actions (CI/CD)
+- Linode VPS
+- Nginx
+- Gunicorn
+- Custom domain + SSL (Let''s Encrypt)
+
+## Prerequisites
+Install these locally:
+- Git
+- Python 3.10+
+- pip
+- Docker Desktop
+- VS Code (optional)
+
+## 1. Clone and reinitialize
+Clone the project:
+```bash
 git clone https://github.com/dev-rathankumar/django_clickmart_
 cd django_clickmart_
-Step 2 - Remove Git history
+```
+
+Optional: remove existing git history and push to your own repo:
+```bash
 rm -rf .git
-This wipes your commit history & remote. Now it is just files in your local computer, not a repo.
-
-Create your own GitHub repository
-Go to GitHub → Click New Repository → Name: django-clickmart
-
-Re-initialize Git
 git init
 git add .
 git commit -m "Initial project setup"
 git branch -M main
 git remote add origin https://github.com/<YOUR-USERNAME>/<REPOSITORY-NAME>.git
 git push -u origin main
-Now you have the full source code in your own repo.
+```
 
-Run Django Locally (Without Docker)
-Create virtual environment
-
+## 2. Run locally (no Docker)
+Backend:
+```bash
 cd backend-drf
-python3 -m venv env
-source env/bin/activate     # Mac / Linux
-# OR
-env\Scripts\activate        # Windows
-Install dependencies
-
+python -m venv env
+# Mac / Linux
+source env/bin/activate
+# Windows
+env\Scripts\activate
 pip install -r requirements.txt
-Create .env file
+```
 
+Create `backend-drf/.env`:
+```env
 DEBUG=True
 SECRET_KEY=<YOUR-SECRET-KEY>
 
-# Database Settings
 DB_NAME=<DATABASE-NAME>
 DB_USER=<POSTGRES-USERNAME>
 DB_PASSWORD=<YOUR-PASSWORD>
 DB_HOST=localhost
 DB_PORT=5432
 
-# Email Configuration
 EMAIL_HOST_USER=<YOUR-EMAIL-ADDRESS>
-EMAIL_HOST_PASSWORD=<PASSWORD> # USE APP PASSWORD IF YOU ARE USING GMAIL
-Create database tables and run the Django server
+EMAIL_HOST_PASSWORD=<PASSWORD>
+```
 
+Run migrations and server:
+```bash
 python manage.py migrate
 python manage.py runserver
-Create .env file inside /frontend/ directory and write:
+```
 
+Frontend:
+Create `frontend/.env`:
+```env
 VITE_SERVER_BASE_URL=http://127.0.0.1:8000/api/v1
-And run the frontend - React
+```
 
+Run the frontend:
+```bash
+cd ../frontend
 npm install
 npm run dev
-Go to http://localhost:5173/
+```
+Open http://localhost:5173/
 
-Optional: You can now create superuser and add some products.
+Optional: create a superuser:
+```bash
+cd ../backend-drf
+python manage.py createsuperuser
+```
 
-To learn about deployment, continue to next step...
-
-Install and verify Docker and Docker Compose
+## 3. Run with Docker (local)
+Verify Docker:
+```bash
 docker --version
 docker compose version
-Create Dockerfile for backend
-Create a new file "Dockerfile" inside /backend-drf/ folder
+```
 
-# Purpose: A Dockerfile is a step-by-step instruction file that tells Docker how to build and run our application.
+Create `backend-drf/Dockerfile`:
+```dockerfile
 FROM python:3.10-slim
 
 ENV PYTHONUNBUFFERED=1
@@ -110,13 +136,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 EXPOSE 8000
+CMD ["gunicorn", "clickmart_main.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3", "--timeout", "180"]
+```
 
-# gunicorn = production server, clickmart_main.wsgi:application = Django entry point, --bind 0.0.0.0:8000 = external traffic. Reminaing: tuning options
-# A worker is just one instance of your Django app running inside Gunicorn.
-CMD ["gunicorn", "clickmart_main.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3" , "--timeout", "180"]
-Create Dockerfile for frontend
-Create a new file "Dockerfile" inside /frontend/ folder
-
+Create `frontend/Dockerfile`:
+```dockerfile
 # Stage 1: Build
 FROM node:18 AS build
 
@@ -127,23 +151,21 @@ RUN npm install
 
 COPY . .
 
-# Build arguments for environment variables
 ARG VITE_SERVER_BASE_URL
-
-# This line passes an environment variable into the Docker container so the React app knows the backend API URL.
 ENV VITE_SERVER_BASE_URL=$VITE_SERVER_BASE_URL
 
 RUN npm run build
 
-# Stage 2: Nginx, alpine means the lighter version of Nginx
+# Stage 2: Serve with Nginx
 FROM nginx:alpine
-
-# Copy build output to Nginx html directory
 COPY --from=build /app/dist /usr/share/nginx/html
 
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
-On the root directory, create a file "docker-compose.yml"
+```
+
+Create `docker-compose.yml` in the repo root:
+```yaml
 services:
   db:
     image: postgres:16-alpine
@@ -178,160 +200,80 @@ services:
     depends_on:
       - backend
 
-
-# This creates a named Docker volume to permanently store PostgreSQL data.
-# Without this:
-  # Database data is stored inside the container
-  # If container is deleted → data is lost
-# With this:
-  # Data is stored in a Docker-managed volume
-  # Data persists even if container stops or restarts
 volumes:
   postgres_data:
-Make sure to create a copy of .env and name it as .env.docker
+```
 
+Create `backend-drf/.env.docker`:
+```env
 SECRET_KEY=<YOUR-DJANGO-SECRETKEY>
 DEBUG=True
 
-# Database Settings
-DB_NAME=<YOUR_DOCKER-DB>
+DB_NAME=<YOUR_DOCKER_DB>
 DB_USER=postgres
 DB_PASSWORD=<PASSWORD>
 DB_HOST=db
 DB_PORT=5432
 
-
 EMAIL_HOST_USER=<YOUR-EMAIL-ADDRESS>
-EMAIL_HOST_PASSWORD=<YOUR-PASSWORD> # app password if you're using Gmail account
-Run this command to Dockerize your project:
+EMAIL_HOST_PASSWORD=<YOUR-PASSWORD>
+```
 
+Run Docker:
+```bash
 docker compose up --build
-Your project is now Dockerized ✅
+```
 
-See the docker container health:
-
-docker compose ps
-You can try creating superuser inside Docker container.
-
-docker compose exec backend python manage.py createsuperuser
-Create Linode Server & SSH Key
-👉 Create a Linode account
-
-Create SSH Key
-On your local machine:
-
-ls ~/.ssh
-ssh-keygen -t ed25519 -C "clickmart-linode"
-Copy the public key and add it to Linode UI:
-
-cat ~/.ssh/linode.pub
-SSH into Linode (Passwordless)
+## 4. Deploy to Linode
+Create a Linode server and SSH in:
+```bash
 ssh root@<LINODE_IP>
-Update the server:
+```
 
+Install dependencies:
+```bash
 apt update && apt upgrade -y
-Install Required Software
-Install Docker:
-
 curl -fsSL https://get.docker.com | sh
-docker --version
-Install Docker Compose:
+apt install docker-compose-plugin git -y
+```
 
-apt install docker-compose-plugin -y
-Install Git:
-
-apt install git -y
-git --version
-✅ Docker, Docker Compose, and Git installed successfully.
-
-Clone Project into /opt
-Reconnect to SSH (if disconnected):
-
+Clone the repo:
+```bash
 cd /opt
 mkdir clickmart
 cd clickmart
 git clone https://github.com/your-repo.git .
-Repo is now cloned inside /opt/clickmart
+```
 
-Update Frontend Environment Variable
-In docker-compose.yml:
+Update frontend API URL in `docker-compose.yml`:
+```yaml
+VITE_SERVER_BASE_URL: "http://<LINODE_IP>:8000/api/v1"
+```
 
-VITE_SERVER_BASE_URL="http://<LINODE_IP>:8000/api/v1"
-Push changes:
-
-git push origin main
-Create Environment Files on Linode
+Create environment files on Linode:
+```bash
 nano backend-drf/.env.production
 nano backend-drf/.env.docker
-Add required environment variables inside it.
+```
 
-Open Firewall Ports on Linode
-⚠️ If ports are not opened, the app will run but won’t be accessible.
+Open firewall ports:
+- 22 (SSH)
+- 8000 (backend)
+- 5173 (frontend)
 
-Required Ports (Initial Setup)
-
-SSH: 22
-Django Backend: 8000
-React Frontend: 5173
-Inbound Rules:
-
-Allow TCP 22
-Allow TCP 8000
-Allow TCP 5173
-Build & Run Docker Containers
+Build and run:
+```bash
 docker compose up --build -d
 docker compose ps
-Test in browser:
+```
 
-Backend: http://<LINODE_IP>:8000/
+Test:
+- Backend: http://<LINODE_IP>:8000/
+- Frontend: http://<LINODE_IP>:5173/
 
-Frontend: http://<LINODE_IP>:5173/
-
-Fix Django ALLOWED_HOSTS
-In local settings.py:
-
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "").split(",")
-
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:5173',
-    'http://<LINODE_IP>:5173'
-]
-In local .env.docker:
-
-ALLOWED_HOSTS=<LINODE_IP>,localhost,127.0.0.1
-In linode .env.docker:
-
-ALLOWED_HOSTS=<LINODE_IP>,localhost,127.0.0.1
-In docker-compose.yml:
-
-VITE_SERVER_BASE_URL: "http://<LINODE_IP>/api/v1"
-Push to GitHub:
-
-git add .
-git commit -m "Allowed host & environments added"
-git push origin main
-This will push the changes to GitHub.
-
-🎯 Goal - Whenever I push code to GitHub, my Linode server should automatically update.
-But first...
-
-Manually pull the code from GitHub to Linode.
-While logged-in to Linode:
-
-git pull origin main
-Rebuild containers:
-
-docker compose down -v
-docker compose up --build -d
-Rule Before Automation
-❗Never automate something you haven’t done manually.
-
-Setup CI/CD (GitHub Actions)
-In local project:
-
-Create a new file:
-
-.github/workflows/automate.yml
+## 5. CI/CD (GitHub Actions)
+Create `.github/workflows/automate.yml`:
+```yaml
 name: Auto Deploy to Linode
 
 on:
@@ -354,43 +296,33 @@ jobs:
             cd /opt/clickmart
             git pull origin main
             docker compose up --build -d
-Add GitHub Secrets: GitHub → Your Repository → Settings → Secrets and variables → Actions → New repository secret
+```
 
-LINODE_HOST → <LINODE_IP>
-LINODE_USER → root
-LINODE_SSH_KEY → Private SSH Key
-Push automation file:
-git add .
-git commit -m "CI/CD Setup"
-git push origin main
-Check GitHub Actions tab.
+Add GitHub secrets:
+- `LINODE_HOST` = `<LINODE_IP>`
+- `LINODE_USER` = `root`
+- `LINODE_SSH_KEY` = your private key
 
-Make a small frontend change and confirm auto-deploy.
+Commit and push.
 
-✅ Auto deploy successful.
-
-Nginx Config
-From local project, create file:
-
-nginx/default.conf
+## 6. Nginx reverse proxy
+Create `nginx/default.conf`:
+```nginx
 server {
     listen 80;
 
-    # Frontend (React)
     location / {
         proxy_pass http://frontend:80;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
     }
 
-    # Backend (Django)
     location /api/ {
         proxy_pass http://backend:8000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
     }
 
-    # Django admin & static
     location /admin/ {
         proxy_pass http://backend:8000;
     }
@@ -403,10 +335,15 @@ server {
         proxy_pass http://backend:8000;
     }
 }
-Docker Compose Changes
-Add nginx service
-Remove ports from backend & frontend
-Update frontend API URL: VITE_SERVER_BASE_URL="/api/v1"
+```
+
+Update `docker-compose.yml`:
+- Add an nginx service
+- Remove ports from backend and frontend
+- Set `VITE_SERVER_BASE_URL` to `/api/v1`
+
+Example nginx service:
+```yaml
 nginx:
   image: nginx:alpine
   ports:
@@ -416,148 +353,88 @@ nginx:
   depends_on:
     - frontend
     - backend
-Push changes:
+```
 
-git add .
-git commit -m "Nginx Setup"
-git push origin main
-Update Firewall (Production)
-Keep:
+Update firewall:
+- Keep 22 and 80
+- Remove 8000 and 5173
 
-22 (SSH)
-80 (HTTP)
-Remove:
+## 7. Gunicorn (production WSGI)
+Ensure `gunicorn` is in `requirements.txt`.
 
-8000 (Backend)
-5173 (Frontend)
-Final Test
-http://<LINODE_IP>/
-
-If you get error: Add backend to allowed host in linode server manually.
-
-Restart docker:
-
-docker compose down -v
-docker compose up --build -d
-Gunicorn Setup (Production WSGI Server)
-1. Add Gunicorn Dependency
-Add gunicorn inside requirements.txt:
-
-Update Backend Dockerfile
-No special change is required other than ensuring requirements.txt is installed. Gunicorn will be installed automatically via dependencies.
-
-Update docker-compose.yml
-Replace the Django run command with Gunicorn:
-
+Update `docker-compose.yml` backend command:
+```yaml
 command: >
   gunicorn clickmart_main.wsgi:application --bind 0.0.0.0:8000 --workers 3
-clickmart_main.wsgi:application → Django entry point
---bind 0.0.0.0:8000 → Listen on all interfaces
---workers 3 → Run 3 Python worker processes
-git add .
-git commit -m "Deploy Gunicorn"
-git push origin main
-Important Note
-✅ We did not change the application code.
+```
 
-✅ We only changed how Python code is executed in production.
+## 8. Custom domain + SSL
+Point your domain to Linode with DNS A records:
+- `@` -> `<LINODE_IP>`
+- `www` -> `<LINODE_IP>`
 
-Verify Gunicorn Is Running
-SSH into the Linode server:
-
-ssh root@<LINODE_IP>
-cd /opt/clickmart
-docker compose logs backend
-Purchase a Domain
-Purchase a domain from any provider (GoDaddy, Namecheap, etc.).
-
-Connect Domain to Linode (DNS) Add the following A records in your domain DNS:
-
-Type	Host	Value
-A	@	<YOUR_LINODE_IP>
-A	www	<YOUR_LINODE_IP>
-Wait for DNS propagation (usually a few minutes to a few hours).
-
-Nginx Config as Server-Managed File
-Certbot modifies the Nginx config directly on the server, so we must remove it from Git tracking.
-
+Make nginx config server-managed:
+```bash
 git rm --cached nginx/default.conf
-Removes the file from Git
-Add to .gitignore:
-
+```
+Add to `.gitignore`:
+```
 nginx/default.conf
-Commit and Push
-git add .
-git commit -m "Make nginx config server-managed"
-git push origin main
-SSH into Linode server
-Create nginx/default.conf file
-Add domain to this file:
+```
+
+On the server, create `nginx/default.conf` and set:
+```
 server_name example.com www.example.com;
-Restart nginx:
+```
 
-docker compose restart nginx
-Update Django ALLOWED_HOSTS
-Add your domain into .env.docker
-
-Restart backend:
-
-docker compose restart backend
-Test Domain (HTTP only
-http://example.com
-
-Install SSL (Let’s Encrypt)
-In the server root directory, create folders:
-
-mkdir -p certbot/www
-mkdir -p certbot/conf
-Update docker-compose.yml (Nginx service)
-Edit docker-compose.yml locally (nginx service):
-
-volumes:
-  - ./certbot/www:/var/www/certbot
-  - ./certbot/conf:/etc/letsencrypt
-Push to main branch.
-
-Update nginx/default.conf
-Edit nginx/default.conf
-
-Add this block:
-
-location /.well-known/acme-challenge/ {
-        root /var/www/certbot;
-    }
-Restart Nginx container:
-
-docker compose restart nginx
-Make sure the site with HTTP still works at this point:
-
-Install Certbot
+Install Certbot:
+```bash
 apt update
 apt install certbot -y
-Get SSL Certificate (WEBROOT METHOD)
+```
+
+Create cert directories:
+```bash
+mkdir -p certbot/www
+mkdir -p certbot/conf
+```
+
+Add to nginx service volumes:
+```yaml
+- ./certbot/www:/var/www/certbot
+- ./certbot/conf:/etc/letsencrypt
+```
+
+Add ACME challenge path in nginx:
+```nginx
+location /.well-known/acme-challenge/ {
+    root /var/www/certbot;
+}
+```
+
+Get SSL certificate:
+```bash
 certbot certonly \
   --webroot \
   -w /opt/clickmart/certbot/www \
-  -d djangoclickmart.store \
-  -d www.djangoclickmart.store
-Enable HTTPS in Nginx
-Edit nginx/default.conf again:
+  -d example.com \
+  -d www.example.com
+```
 
-Replace with FINAL CONFIG:
-
+Final nginx config:
+```nginx
 server {
     listen 80;
-    server_name click-mart.website www.click-mart.website;
+    server_name example.com www.example.com;
     return 301 https://$host$request_uri;
 }
 
 server {
     listen 443 ssl;
-    server_name click-mart.website www.click-mart.website;
+    server_name example.com www.example.com;
 
-    ssl_certificate /etc/letsencrypt/live/click-mart.website/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/click-mart.website/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;
 
     location / {
         proxy_pass http://frontend:80;
@@ -575,55 +452,30 @@ server {
         alias /static/;
     }
 }
+```
 
-
-Restart Nginx
+Restart nginx:
+```bash
 docker compose restart nginx
+```
 
-Test HTTPS 🎉
-https://example.com
-
-Congratulations 🎉 You did it.
-
-Fixing Media Files in Production (Docker + Nginx + Django)
-This guide explains how to fix issues where media files (uploaded images) are not loading correctly in production.
-
-Step 1: Update Nginx Configuration (Server)
-Login to your production server.
-Open the Nginx config file:
-nano nginx/default.conf
-Add the following block inside the HTTPS server block:
+## 9. Serve media files
+On the server, update `nginx/default.conf` in the HTTPS server block:
+```nginx
 location /media/ {
     alias /media/;
 }
-This tells Nginx to serve uploaded media files directly. 4. Restart nginx container:
+```
 
-docker compose restart nginx
-Step 2: Mount Media Folder in Docker (Local Project)
-Open docker-compose.yml - in your local project
-Inside the nginx service, add the media volume mapping:
+Update nginx service volume mapping:
+```yaml
 nginx:
-    volumes:
-      - ./backend-drf/media:/media
-This allows the Nginx container to access uploaded media files created by Django.
+  volumes:
+    - ./backend-drf/media:/media
+```
 
-Commit and push the changes:
-git add .
-git commit -m "Serve media files using nginx"
-git push origin main
-Step 3: Verify Media Files
-Try opening a media file directly in the browser:
-
-https://your-domain.com/media/example.jpg
-If the image loads, media serving is working correctly.
-
-Step 4 (Fallback): Fix Serializer Image URL
-If media files load directly but still do not appear on the webpage, update the serializer to return a relative media path.
-
-Open products/serializers.py
-Update ProductSerializer - or whatever serializer the image is coming from. Refer to below code:
-from rest_framework import serializers
-
+If images still do not appear, ensure the serializer returns a relative URL:
+```python
 class ProductSerializer(serializers.ModelSerializer):
     image = serializers.SerializerMethodField()
 
@@ -633,10 +485,4 @@ class ProductSerializer(serializers.ModelSerializer):
 
     def get_image(self, obj):
         return obj.image.url if obj.image else None
-This ensures the API returns: /media/products/image.jpg instead of Docker-internal URLs like backend:8000
-
-Commit and push again:
-git add .
-git commit -m "Fix media image URL in serializer"
-git push origin main
-Test again.
+```
