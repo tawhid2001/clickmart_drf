@@ -176,6 +176,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://45.79.212.19:8000",
     "http://45.79.212.19:5173",
+    "http://45.79.212.19",
 ]
 
-CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", "").split(",")
+CSRF_TRUSTED_ORIGINS = os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",")
