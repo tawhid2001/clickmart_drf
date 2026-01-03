@@ -41,7 +41,7 @@ Install these locally:
 ## 1. Clone and reinitialize
 Clone the project:
 ```bash
-git clone https://github.com/dev-rathankumar/clickmart_drf
+git clone https://github.com/tawhid2001/clickmart_drf
 cd clickmart_drf
 ```
 
