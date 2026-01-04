@@ -459,23 +459,55 @@ Restart nginx:
 docker compose restart nginx
 ```
 
-## 9. Serve media files
-On the server, update `nginx/default.conf` in the HTTPS server block:
+## Fixing Media Files in Production (Docker + Nginx + Django)
+This section covers common fixes when uploaded images do not load in production.
+
+### Step 1: Update Nginx configuration (server)
+Login to your production server and open the Nginx config:
+```bash
+nano nginx/default.conf
+```
+
+Add this inside the HTTPS server block:
 ```nginx
 location /media/ {
     alias /media/;
 }
 ```
 
-Update nginx service volume mapping:
+Restart nginx:
+```bash
+docker compose restart nginx
+```
+
+### Step 2: Mount the media folder in Docker (local project)
+In `docker-compose.yml`, add the media volume mapping under the `nginx` service:
 ```yaml
 nginx:
   volumes:
     - ./backend-drf/media:/media
 ```
 
-If images still do not appear, ensure the serializer returns a relative URL:
+Commit and push:
+```bash
+git add .
+git commit -m "Serve media files using nginx"
+git push origin main
+```
+
+### Step 3: Verify media files
+Open a media URL in your browser:
+```
+https://your-domain.com/media/products/example.jpg
+```
+
+### Step 4 (fallback): Fix serializer image URL
+If media files load directly but still do not appear on the site, return a relative media path from the serializer.
+
+Open `backend-drf/products/serializers.py` and update the serializer:
 ```python
+from rest_framework import serializers
+
 class ProductSerializer(serializers.ModelSerializer):
     image = serializers.SerializerMethodField()
 
@@ -485,4 +517,11 @@ class ProductSerializer(serializers.ModelSerializer):
 
     def get_image(self, obj):
         return obj.image.url if obj.image else None
+```
+
+Commit and push:
+```bash
+git add .
+git commit -m "Fix media image URL in serializer"
+git push origin main
 ```
